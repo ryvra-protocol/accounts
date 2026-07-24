@@ -1,16 +1,21 @@
 import type { ServiceError, SessionKeyRecord } from "../types.js";
 
 export interface IssueSessionKeyRequest {
-  accountId: string;
-  sessionPublicKey: string;
-  validAfter: string;
-  validUntil: string;
-  policyRef: string;
+  account_id: string;
+  reference_id: string;
+  idempotency_key: string;
+  correlation_id: string;
+  policy_version: string;
+  session_public_key: string;
+  valid_after: string;
+  valid_until: string;
 }
 
 export interface RevokeSessionKeyRequest {
-  accountId: string;
-  sessionKeyId: string;
+  account_id: string;
+  reference_id: string;
+  correlation_id: string;
+  session_key_id: string;
   reason?: string;
 }
 
@@ -20,20 +25,22 @@ export interface RevokeSessionKeyRequest {
  */
 export class SessionKeyManager {
   async issueSessionKey(request: IssueSessionKeyRequest): Promise<SessionKeyRecord | ServiceError> {
-    if (request.validUntil <= request.validAfter) {
+    if (request.valid_until <= request.valid_after) {
       return {
         code: "INVALID_REQUEST",
-        message: "validUntil must be greater than validAfter",
+        message: "valid_until must be greater than valid_after",
       };
     }
 
     return {
-      sessionKeyId: "TODO-session-key-id",
-      accountId: request.accountId,
+      session_key_id: "TODO-session-key-id",
+      account_id: request.account_id,
+      reference_id: request.reference_id,
+      correlation_id: request.correlation_id,
       status: "active",
-      validAfter: request.validAfter,
-      validUntil: request.validUntil,
-      policyRef: request.policyRef,
+      valid_after: request.valid_after,
+      valid_until: request.valid_until,
+      policy_version: request.policy_version,
     };
   }
 

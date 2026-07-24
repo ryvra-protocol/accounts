@@ -9,7 +9,8 @@ This RFC defines initial interfaces for the Ryvra Accounts services.
 ## Common Conventions
 
 - All timestamps are ISO-8601 UTC strings.
-- `accountId` is a canonical identifier for an account abstraction wallet.
+- `account_id` is the canonical identifier for an account abstraction wallet.
+- Canonical ID fields (where applicable): `account_id`, `reference_id`, `idempotency_key`, `policy_version`, `correlation_id`.
 - `userOpHash` follows EIP-4337 hashing expectations for replay-safety.
 - Errors are returned as structured error objects.
 
@@ -44,7 +45,9 @@ interface CreateAccountRequest {
 }
 
 interface CreateAccountResponse {
-  accountId: string;
+  account_id: string;
+  reference_id: string;
+  correlation_id: string;
   accountAddress: string;
   deployed: boolean;
 }
@@ -52,7 +55,7 @@ interface CreateAccountResponse {
 
 ### Methods
 - `createAccount(request): Promise<CreateAccountResponse | ServiceError>`
-- `getAccount(accountId): Promise<{ accountId: string; accountAddress: string } | ServiceError>`
+- `getAccount(account_id): Promise<{ account_id: string; accountAddress: string } | ServiceError>`
 
 ## 2) SessionKeyManager
 
@@ -60,22 +63,32 @@ interface CreateAccountResponse {
 
 ```ts
 interface IssueSessionKeyRequest {
-  accountId: string;
-  sessionPublicKey: string;
-  validAfter: string;
-  validUntil: string;
-  policyRef: string;
+  account_id: string;
+  reference_id: string;
+  idempotency_key: string;
+  correlation_id: string;
+  policy_version: string;
+  session_public_key: string;
+  valid_after: string;
+  valid_until: string;
 }
 
 interface IssueSessionKeyResponse {
-  sessionKeyId: string;
-  accountId: string;
+  session_key_id: string;
+  account_id: string;
+  reference_id: string;
+  correlation_id: string;
   status: "active" | "revoked" | "expired";
+  valid_after: string;
+  valid_until: string;
+  policy_version: string;
 }
 
 interface RevokeSessionKeyRequest {
-  accountId: string;
-  sessionKeyId: string;
+  account_id: string;
+  reference_id: string;
+  correlation_id: string;
+  session_key_id: string;
   reason?: string;
 }
 ```
@@ -83,7 +96,7 @@ interface RevokeSessionKeyRequest {
 ### Methods
 - `issueSessionKey(request): Promise<IssueSessionKeyResponse | ServiceError>`
 - `revokeSessionKey(request): Promise<{ revoked: true } | ServiceError>`
-- `getSessionKey(accountId, sessionKeyId): Promise<IssueSessionKeyResponse | ServiceError>`
+- `getSessionKey(account_id, session_key_id): Promise<IssueSessionKeyResponse | ServiceError>`
 
 ## 3) UserOpService
 
@@ -91,26 +104,38 @@ interface RevokeSessionKeyRequest {
 
 ```ts
 interface ValidateUserOpRequest {
-  accountId: string;
+  account_id: string;
+  reference_id: string;
+  idempotency_key: string;
+  correlation_id: string;
+  policy_version: string;
   userOperation: Record<string, unknown>;
-  expectedNonce: string;
+  expected_nonce: string;
 }
 
 interface ValidateUserOpResponse {
   valid: boolean;
-  userOpHash?: string;
+  reference_id: string;
+  correlation_id: string;
+  user_op_hash?: string;
   reasons?: string[];
 }
 
 interface SubmitUserOpRequest {
-  accountId: string;
+  account_id: string;
+  reference_id: string;
+  idempotency_key: string;
+  correlation_id: string;
+  policy_version: string;
   userOperation: Record<string, unknown>;
 }
 
 interface SubmitUserOpResponse {
   accepted: boolean;
-  userOpHash?: string;
-  bundlerRequestId?: string;
+  reference_id: string;
+  correlation_id: string;
+  user_op_hash?: string;
+  bundler_request_id?: string;
 }
 ```
 
@@ -124,18 +149,25 @@ interface SubmitUserOpResponse {
 
 ```ts
 interface PolicyEvaluationRequest {
-  accountId: string;
-  actorKeyId?: string;
+  account_id: string;
+  reference_id: string;
+  correlation_id: string;
+  policy_version: string;
+  actor_key_id?: string;
   action: string;
   context: Record<string, unknown>;
 }
 
 interface PolicyEvaluationResponse {
-  allow: boolean;
-  decisionId: string;
-  denyReasons?: string[];
+  decision: "ALLOW" | "DENY" | "REVIEW";
+  policy_version: string;
+  reference_id: string;
+  correlation_id: string;
+  reason_codes?: string[];
 }
 ```
+
+- `DENY` responses MUST include non-empty machine-readable `reason_codes`.
 
 ### Methods
 - `evaluate(request): Promise<PolicyEvaluationResponse | ServiceError>`
@@ -146,9 +178,11 @@ interface PolicyEvaluationResponse {
 
 ```ts
 interface PaymasterEligibilityRequest {
-  accountId: string;
+  account_id: string;
+  reference_id: string;
+  correlation_id: string;
   userOperation: Record<string, unknown>;
-  policyDecisionId?: string;
+  policy_decision_reference_id?: string;
 }
 
 interface PaymasterEligibilityResponse {
@@ -164,7 +198,20 @@ interface PaymasterEligibilityResponse {
 ## Nonce Handling and Replay Prevention
 
 - Nonce must be read from canonical account nonce source before validation.
-- `expectedNonce` mismatch should return `NONCE_CONFLICT`.
-- Duplicate `userOpHash` submissions must return `REPLAY_DETECTED`.
+- `expected_nonce` mismatch should return `NONCE_CONFLICT`.
+- Duplicate `user_op_hash` submissions must return `REPLAY_DETECTED`.
 - Services should bind nonce usage to account scope and relevant key scope where supported.
 - Front-running mitigation should include deterministic hashing and strict signature domain separation.
+
+## Event Envelope (Canonical)
+
+```ts
+interface EventEnvelope<TPayload = Record<string, unknown>> {
+  event_id: string;
+  correlation_id: string;
+  reference_id: string;
+  event_type: string;
+  timestamp: string;
+  payload: TPayload;
+}
+```

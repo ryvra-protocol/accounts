@@ -8,27 +8,41 @@ describe("Ryvra Accounts scaffold", () => {
     const pdp = new PolicyDecisionPoint();
 
     const validation = await userOpService.validateUserOp({
-      accountId: "acc_1",
+      account_id: "acc_1",
+      reference_id: "ref_validate_1",
+      idempotency_key: "idem_validate_1",
+      correlation_id: "corr_1",
+      policy_version: "policy.v1",
       userOperation: {},
-      expectedNonce: "0",
+      expected_nonce: "0",
     });
 
     const issued = await sessionKeyManager.issueSessionKey({
-      accountId: "acc_1",
-      sessionPublicKey: "0xabc",
-      validAfter: "2026-01-01T00:00:00Z",
-      validUntil: "2026-01-01T01:00:00Z",
-      policyRef: "policy-basic",
+      account_id: "acc_1",
+      reference_id: "ref_issue_1",
+      idempotency_key: "idem_issue_1",
+      correlation_id: "corr_1",
+      policy_version: "policy.v1",
+      session_public_key: "0xabc",
+      valid_after: "2026-01-01T00:00:00Z",
+      valid_until: "2026-01-01T01:00:00Z",
     });
 
     const policy = await pdp.evaluate({
-      accountId: "acc_1",
+      account_id: "acc_1",
+      reference_id: "ref_policy_1",
+      correlation_id: "corr_1",
+      policy_version: "policy.v1",
       action: "userop.submit",
       context: {},
     });
 
     expect(validation).toHaveProperty("valid");
-    expect(issued).toHaveProperty("accountId", "acc_1");
-    expect(policy).toHaveProperty("allow", false);
+    expect(validation).toHaveProperty("reference_id", "ref_validate_1");
+    expect(issued).toHaveProperty("account_id", "acc_1");
+    expect(policy).toHaveProperty("decision", "DENY");
+    expect(policy).toHaveProperty("reason_codes");
+    expect(Array.isArray((policy as { reason_codes?: string[] }).reason_codes)).toBe(true);
+    expect((policy as { reason_codes?: string[] }).reason_codes?.length).toBeGreaterThan(0);
   });
 });

@@ -1,20 +1,30 @@
 import type { ServiceError, UserOpValidationResult } from "../types.js";
 
 export interface ValidateUserOpRequest {
-  accountId: string;
+  account_id: string;
+  reference_id: string;
+  idempotency_key: string;
+  correlation_id: string;
+  policy_version: string;
   userOperation: Record<string, unknown>;
-  expectedNonce: string;
+  expected_nonce: string;
 }
 
 export interface SubmitUserOpRequest {
-  accountId: string;
+  account_id: string;
+  reference_id: string;
+  idempotency_key: string;
+  correlation_id: string;
+  policy_version: string;
   userOperation: Record<string, unknown>;
 }
 
 export interface SubmitUserOpResponse {
   accepted: boolean;
-  userOpHash?: string;
-  bundlerRequestId?: string;
+  reference_id: string;
+  correlation_id: string;
+  user_op_hash?: string;
+  bundler_request_id?: string;
 }
 
 /**
@@ -23,17 +33,21 @@ export interface SubmitUserOpResponse {
  */
 export class UserOpService {
   async validateUserOp(
-    _request: ValidateUserOpRequest,
+    request: ValidateUserOpRequest,
   ): Promise<UserOpValidationResult | ServiceError> {
     return {
       valid: false,
+      reference_id: request.reference_id,
+      correlation_id: request.correlation_id,
       reasons: ["TODO: validation logic not implemented"],
     };
   }
 
-  async submitUserOp(_request: SubmitUserOpRequest): Promise<SubmitUserOpResponse | ServiceError> {
+  async submitUserOp(request: SubmitUserOpRequest): Promise<SubmitUserOpResponse | ServiceError> {
     return {
       accepted: false,
+      reference_id: request.reference_id,
+      correlation_id: request.correlation_id,
     };
   }
 }
