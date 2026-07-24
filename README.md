@@ -41,3 +41,7 @@ It focuses on:
 
 This repository starts docs-first with lightweight implementation scaffolding.
 Concrete protocol and security-hardening logic is intentionally deferred.
+
+Current interface scaffolding aligns to protocol-core canonical contract vocabulary:
+- Canonical ID fields: `account_id`, `reference_id`, `idempotency_key`, `policy_version`, `correlation_id`
+- Policy decisions: `ALLOW | DENY | REVIEW` with non-empty `reason_codes` on `DENY`

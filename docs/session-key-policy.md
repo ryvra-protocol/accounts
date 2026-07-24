@@ -27,7 +27,7 @@
 
 ### 5) Audit Logging Requirements
 
-- Log issuance with key ID, account ID, policy reference, and validity window.
-- Log revocation with key ID, account ID, reason, and actor.
-- Log policy denials with decision ID and normalized reason codes.
+- Log issuance with `session_key_id`, `account_id`, `reference_id`, `correlation_id`, `policy_version`, and validity window.
+- Log revocation with `session_key_id`, `account_id`, `reference_id`, `correlation_id`, reason, and actor.
+- Log policy denials with canonical `decision` (`ALLOW | DENY | REVIEW`) and normalized machine-readable `reason_codes`.
 - Logs SHOULD be immutable and retained per governance policy.
