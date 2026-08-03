@@ -57,7 +57,7 @@ describe("replay and idempotency boundaries", () => {
     });
 
     expect(first).toHaveProperty("accepted", true);
-    expect(second).toHaveProperty("code", "REPLAY_DETECTED");
+    expect(second).toHaveProperty("code", "NONCE_CONFLICT");
   });
 
   it("invokes duplicate rejection hook on idempotency duplicate", async () => {
@@ -107,6 +107,6 @@ describe("replay and idempotency boundaries", () => {
       userOperation: baseUserOperation("10", "0x1234"),
     });
 
-    expect(result).toHaveProperty("code", "REPLAY_DETECTED");
+    expect(result).toHaveProperty("code", "NONCE_CONFLICT");
   });
 });

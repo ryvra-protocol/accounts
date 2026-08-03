@@ -157,8 +157,8 @@ function toServiceError(error: unknown): ServiceError {
   }
 
   return {
-    code: "INTERNAL_ERROR",
-    message: "unexpected runtime failure",
+    code: "INVALID_REQUEST",
+    message: "invalid user operation request",
     details: sanitizeErrorDetails(error),
   };
 }
