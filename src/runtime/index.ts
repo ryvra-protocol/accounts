@@ -4,3 +4,4 @@ export * from "./bundler-client.js";
 export * from "./paymaster.js";
 export * from "./validation.js";
 export * from "./observability.js";
+export * from "./retry.js";

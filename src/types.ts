@@ -9,7 +9,9 @@ export interface ServiceError {
     | "NONCE_CONFLICT"
     | "RATE_LIMITED"
     | "SPONSORSHIP_DENIED"
-    | "INTERNAL_ERROR";
+    | "INTERNAL_ERROR"
+    | "UPSTREAM_UNAVAILABLE"
+    | "PENDING_TIMEOUT";
   message: string;
   details?: Record<string, unknown>;
 }

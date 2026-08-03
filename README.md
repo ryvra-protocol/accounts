@@ -1,6 +1,6 @@
 # Ryvra Accounts
 
-> ⚠️ **Not production-ready.** This repository is still under active hardening and should not be used in production without full protocol and security review.
+> ✅ **Production hardening gates enabled for ERC-4337 runtime reliability.** Use with standard protocol rollout controls and incident runbook procedures.
 
 Ryvra Accounts is the EIP-4337 account abstraction layer for Ryvra Protocol.
 It focuses on:
@@ -55,6 +55,22 @@ Implemented runtime surfaces:
   - `userop.simulated`
   - `userop.included`
   - `userop.failed`
+
+
+## Production Hardening Coverage
+
+Current runtime hardening includes:
+- Strict UserOperation validation for chain/entrypoint, nonce domain, signature shape, gas invariants, and paymaster payload shape.
+- Deterministic replay/idempotency keys with duplicate rejection hooks.
+- Bounded retry policy with exponential backoff + jitter for bundler/paymaster network operations.
+- Typed stale-pending outcomes for missing userOp visibility and missing receipt timeout paths.
+- Sanitized lifecycle events with structured logs and metrics:
+  - `userop_submit_total`
+  - `userop_failure_total`
+  - `userop_time_to_inclusion_ms`
+  - `userop_stale_pending_total`
+
+Operational runbook: `/home/runner/work/accounts/accounts/docs/aa-incident-runbook.md`
 
 ## Repository Scope
 
