@@ -22,6 +22,12 @@ describe("runtime error taxonomy", () => {
     sender: "0xabababababababababababababababababababab",
     nonce: "1",
     callData: "0x1234",
+    callGasLimit: "21000",
+    verificationGasLimit: "30000",
+    preVerificationGas: "22000",
+    maxFeePerGas: "100",
+    maxPriorityFeePerGas: "2",
+    signature: "0x" + "11".repeat(65),
   });
 
   it("INVALID_CHAIN", () => {
@@ -98,6 +104,28 @@ describe("runtime error taxonomy", () => {
     expectRuntimeCode(
       () => validateUserOperationShape({ ...canonical, sender: "0x1234" }, false),
       "INVALID_USER_OPERATION",
+    );
+  });
+
+  it("INVALID_SIGNATURE", () => {
+    expectRuntimeCode(
+      () => validateUserOperationShape({ ...canonical, signature: "0x1234" }, false),
+      "INVALID_SIGNATURE",
+    );
+  });
+
+  it("INVALID_GAS_FIELDS", () => {
+    expectRuntimeCode(
+      () => validateUserOperationShape({ ...canonical, maxPriorityFeePerGas: "0x200" }, false),
+      "INVALID_GAS_FIELDS",
+    );
+  });
+
+  it("INVALID_NONCE_DOMAIN", () => {
+    const oversizedNonce = "0x" + "ff".repeat(33);
+    expectRuntimeCode(
+      () => validateUserOperationShape({ ...canonical, nonce: oversizedNonce }, false),
+      "INVALID_NONCE_DOMAIN",
     );
   });
 });

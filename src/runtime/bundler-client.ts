@@ -1,5 +1,5 @@
 import type { UserOperation } from "./user-operation-builder.js";
-import { UserOpRuntimeError } from "./errors.js";
+import { UserOpRuntimeError, classifyRetryDisposition } from "./errors.js";
 
 export interface UserOperationReceipt {
   userOpHash: string;
@@ -36,22 +36,36 @@ export interface BundlerClient {
   getUserOperationReceipt(userOpHash: string): Promise<UserOperationReceipt | null>;
 }
 
-export type JsonRpcTransport = (request: {
-  method: string;
-  params: unknown[];
-}) => Promise<unknown>;
+export type JsonRpcTransport = (request: { method: string; params: unknown[] }) => Promise<unknown>;
+
+function toBundlerError(error: unknown, method: string): UserOpRuntimeError {
+  const retriable = classifyRetryDisposition(error) === "retriable";
+  return new UserOpRuntimeError(
+    retriable ? "UPSTREAM_UNAVAILABLE" : "BUNDLER_ERROR",
+    retriable ? "bundler temporarily unavailable" : "bundler request failed",
+    {
+      method,
+      retriable,
+    },
+  );
+}
 
 export class JsonRpcBundlerClient implements BundlerClient {
   constructor(private readonly transport: JsonRpcTransport) {}
+
+  private async request(method: string, params: unknown[]): Promise<unknown> {
+    try {
+      return await this.transport({ method, params });
+    } catch (error) {
+      throw toBundlerError(error, method);
+    }
+  }
 
   async sendUserOperation(
     userOperation: UserOperation,
     entryPoint: string,
   ): Promise<{ userOpHash: string }> {
-    const result = await this.transport({
-      method: "eth_sendUserOperation",
-      params: [userOperation, entryPoint],
-    });
+    const result = await this.request("eth_sendUserOperation", [userOperation, entryPoint]);
 
     if (typeof result !== "string" || !result.startsWith("0x")) {
       throw new UserOpRuntimeError("BUNDLER_ERROR", "bundler returned invalid userOpHash", {
@@ -66,10 +80,7 @@ export class JsonRpcBundlerClient implements BundlerClient {
     userOperation: UserOperation,
     entryPoint: string,
   ): Promise<BundlerEstimateResult> {
-    const result = await this.transport({
-      method: "eth_estimateUserOperationGas",
-      params: [userOperation, entryPoint],
-    });
+    const result = await this.request("eth_estimateUserOperationGas", [userOperation, entryPoint]);
 
     if (!result || typeof result !== "object") {
       throw new UserOpRuntimeError("SIMULATION_FAILED", "bundler gas estimation failed", {
@@ -84,10 +95,7 @@ export class JsonRpcBundlerClient implements BundlerClient {
     userOperation: UserOperation,
     entryPoint: string,
   ): Promise<BundlerSimulationResult> {
-    const result = await this.transport({
-      method: "eth_simulateUserOperation",
-      params: [userOperation, entryPoint],
-    });
+    const result = await this.request("eth_simulateUserOperation", [userOperation, entryPoint]);
 
     if (!result || typeof result !== "object") {
       throw new UserOpRuntimeError("SIMULATION_FAILED", "bundler simulation failed", {
@@ -102,10 +110,7 @@ export class JsonRpcBundlerClient implements BundlerClient {
   }
 
   async getUserOperationByHash(userOpHash: string): Promise<Record<string, unknown> | null> {
-    const result = await this.transport({
-      method: "eth_getUserOperationByHash",
-      params: [userOpHash],
-    });
+    const result = await this.request("eth_getUserOperationByHash", [userOpHash]);
 
     if (result === null) {
       return null;
@@ -121,10 +126,7 @@ export class JsonRpcBundlerClient implements BundlerClient {
   }
 
   async getUserOperationReceipt(userOpHash: string): Promise<UserOperationReceipt | null> {
-    const result = await this.transport({
-      method: "eth_getUserOperationReceipt",
-      params: [userOpHash],
-    });
+    const result = await this.request("eth_getUserOperationReceipt", [userOpHash]);
 
     if (result === null) {
       return null;
