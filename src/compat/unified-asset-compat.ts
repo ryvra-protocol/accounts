@@ -89,73 +89,12 @@ export function validateUnifiedAssetContext(context: UnifiedAssetContext): Unifi
 
   for (const asset of context.assets) {
     const key = makeAssetKey(asset);
-    const knownAsset = assetsByKey.get(key);
-    if (knownAsset) {
+    if (assetsByKey.has(key)) {
       issues.push({
         code: "DUPLICATE_ASSET_REFERENCE",
         message: `asset ${key} appears more than once`,
       });
       continue;
-    }
-
-    export function validateUnifiedAssetBoundaryContexts(
-      contexts: UnifiedAssetBoundaryContexts,
-    ): UnifiedAssetValidationResult {
-      const combinedIssues: UnifiedAssetValidationIssue[] = [];
-      const contextEntries = Object.entries(contexts) as Array<[string, UnifiedAssetContext | undefined]>;
-      const validatedContexts: Array<[string, UnifiedAssetContext]> = [];
-
-      for (const [name, context] of contextEntries) {
-        if (!context) {
-          continue;
-        }
-
-        validatedContexts.push([name, context]);
-        const validation = validateUnifiedAssetContext(context);
-        if (!validation.valid) {
-          combinedIssues.push(
-            ...validation.issues.map((issue) => ({
-              ...issue,
-              message: `${name}: ${issue.message}`,
-            })),
-          );
-        }
-      }
-
-      for (let i = 0; i < validatedContexts.length; i += 1) {
-        for (let j = i + 1; j < validatedContexts.length; j += 1) {
-          const [leftName, leftContext] = validatedContexts[i];
-          const [rightName, rightContext] = validatedContexts[j];
-
-          const leftSet = new Set(leftContext.assets.map((asset) => makeAssetKey(asset)));
-          const rightSet = new Set(rightContext.assets.map((asset) => makeAssetKey(asset)));
-          if (leftSet.size !== rightSet.size || [...leftSet].some((key) => !rightSet.has(key))) {
-            combinedIssues.push({
-              code: "INVALID_ASSET_REFERENCE",
-              message: `${leftName} and ${rightName} include different asset references`,
-            });
-          }
-
-          for (const leftAsset of leftContext.assets) {
-            const rightAsset = rightContext.assets.find(
-              (asset) =>
-                asset.chain_id === leftAsset.chain_id &&
-                asset.canonical_asset_id === leftAsset.canonical_asset_id,
-            );
-            if (rightAsset && rightAsset.decimals !== leftAsset.decimals) {
-              combinedIssues.push({
-                code: "ASSET_DECIMAL_MISMATCH",
-                message: `${leftName} and ${rightName} disagree on decimals for ${makeAssetKey(leftAsset)}`,
-              });
-            }
-          }
-        }
-      }
-
-      return {
-        valid: combinedIssues.length === 0,
-        issues: combinedIssues,
-      };
     }
 
     if (!Number.isInteger(asset.chain_id) || asset.chain_id <= 0) {
@@ -224,20 +163,13 @@ export function validateUnifiedAssetContext(context: UnifiedAssetContext): Unifi
   }
 
   for (const constraint of context.constraints ?? []) {
-    const knownAsset = context.assets.find((asset) => asset.canonical_asset_id === constraint.asset_ref);
+    const knownAsset = assetsByKey.get(`${constraint.chain_id}:${constraint.asset_ref}`);
     if (!knownAsset) {
       issues.push({
         code: "INVALID_ASSET_REFERENCE",
-        message: `constraint references unknown asset ${constraint.asset_ref}`,
+        message: `constraint references unknown asset ${constraint.chain_id}:${constraint.asset_ref}`,
       });
       continue;
-    }
-
-    if (knownAsset.chain_id !== constraint.chain_id) {
-      issues.push({
-        code: "ASSET_CHAIN_MISMATCH",
-        message: `constraint chain_id mismatch for ${constraint.asset_ref}`,
-      });
     }
 
     if (
@@ -279,5 +211,65 @@ export function validateUnifiedAssetContext(context: UnifiedAssetContext): Unifi
   return {
     valid: issues.length === 0,
     issues,
+  };
+}
+
+export function validateUnifiedAssetBoundaryContexts(
+  contexts: UnifiedAssetBoundaryContexts,
+): UnifiedAssetValidationResult {
+  const combinedIssues: UnifiedAssetValidationIssue[] = [];
+  const contextEntries = Object.entries(contexts) as Array<[string, UnifiedAssetContext | undefined]>;
+  const validatedContexts: Array<[string, UnifiedAssetContext]> = [];
+
+  for (const [name, context] of contextEntries) {
+    if (!context) {
+      continue;
+    }
+
+    validatedContexts.push([name, context]);
+    const validation = validateUnifiedAssetContext(context);
+    if (!validation.valid) {
+      combinedIssues.push(
+        ...validation.issues.map((issue) => ({
+          ...issue,
+          message: `${name}: ${issue.message}`,
+        })),
+      );
+    }
+  }
+
+  for (let i = 0; i < validatedContexts.length; i += 1) {
+    for (let j = i + 1; j < validatedContexts.length; j += 1) {
+      const [leftName, leftContext] = validatedContexts[i];
+      const [rightName, rightContext] = validatedContexts[j];
+
+      const leftSet = new Set(leftContext.assets.map((asset) => makeAssetKey(asset)));
+      const rightSet = new Set(rightContext.assets.map((asset) => makeAssetKey(asset)));
+      if (leftSet.size !== rightSet.size || [...leftSet].some((key) => !rightSet.has(key))) {
+        combinedIssues.push({
+          code: "INVALID_ASSET_REFERENCE",
+          message: `${leftName} and ${rightName} include different asset references`,
+        });
+      }
+
+      for (const leftAsset of leftContext.assets) {
+        const rightAsset = rightContext.assets.find(
+          (asset) =>
+            asset.chain_id === leftAsset.chain_id &&
+            asset.canonical_asset_id === leftAsset.canonical_asset_id,
+        );
+        if (rightAsset && rightAsset.decimals !== leftAsset.decimals) {
+          combinedIssues.push({
+            code: "ASSET_DECIMAL_MISMATCH",
+            message: `${leftName} and ${rightName} disagree on decimals for ${makeAssetKey(leftAsset)}`,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    valid: combinedIssues.length === 0,
+    issues: combinedIssues,
   };
 }
