@@ -37,7 +37,7 @@ describe("replay and idempotency boundaries", () => {
       userOperation: {
         sender: "0xabababababababababababababababababababab",
         nonce: "5",
-        callData: "0x1234",
+        callData: "0x5678",
       },
     });
 

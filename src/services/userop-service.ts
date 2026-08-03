@@ -118,7 +118,7 @@ function toServiceError(error: unknown): ServiceError {
 
   if (error instanceof Error) {
     return {
-      code: "INTERNAL_ERROR",
+      code: "INVALID_REQUEST",
       message: error.message,
     };
   }

@@ -28,10 +28,18 @@ export interface UserOperation {
   signature: string;
 }
 
-export interface UserOperationBuilderInput extends Partial<UserOperation> {
+export interface UserOperationBuilderInput {
   sender: string;
   nonce: string | number | bigint;
+  initCode?: string;
   callData: string;
+  callGasLimit?: string | number | bigint;
+  verificationGasLimit?: string | number | bigint;
+  preVerificationGas?: string | number | bigint;
+  maxFeePerGas?: string | number | bigint;
+  maxPriorityFeePerGas?: string | number | bigint;
+  paymasterAndData?: string;
+  signature?: string;
 }
 
 export interface SignatureReadyPayload {
