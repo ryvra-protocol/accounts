@@ -39,12 +39,19 @@ export interface EventEnvelope<TPayload = Record<string, unknown>> {
 export interface SessionKeyRecord {
   session_key_id: string;
   account_id: string;
+  agent_id: string;
+  mandate_id: string;
+  capability_ids: string[];
+  nonce_domain: string;
   reference_id: string;
   correlation_id: string;
   status: "active" | "revoked" | "expired";
   valid_after: string;
   valid_until: string;
   policy_version: string;
+  policy_hash: string;
+  risk_assessment_id: string;
+  authority_scope: "capability_scoped";
 }
 
 /** Canonical user operation validation result used by UserOpService. */

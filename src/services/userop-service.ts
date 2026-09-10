@@ -21,7 +21,8 @@ import {
 import type { PaymasterClient, SponsorshipPolicyConstraints } from "../runtime/paymaster.js";
 import { validateSponsorshipConstraints } from "../runtime/paymaster.js";
 import { executeWithRetry, withDefaultRetryPolicy, type RetryPolicy } from "../runtime/retry.js";
-import { validateRuntimeContext, validateUserOperationShape } from "../runtime/validation.js";
+import { getNonceDomainFromNonce, validateRuntimeContext, validateUserOperationShape } from "../runtime/validation.js";
+import { AgentValidator, type AgentValidationContext } from "./agent-validator.js";
 
 export interface ValidateUserOpRequest {
   account_id: string;
@@ -36,6 +37,7 @@ export interface ValidateUserOpRequest {
   bundler_asset_context?: UnifiedAssetContext;
   chain_id?: number;
   entry_point?: string;
+  agent_context?: AgentUserOperationContext;
 }
 
 export interface SubmitUserOpRequest {
@@ -50,6 +52,26 @@ export interface SubmitUserOpRequest {
   bundler_asset_context?: UnifiedAssetContext;
   chain_id?: number;
   entry_point?: string;
+  agent_context?: AgentUserOperationContext;
+}
+
+export interface AgentUserOperationContext {
+  initiated_by_agent: boolean;
+  agent_id?: string;
+  mandate_id?: string;
+  mandate_version?: string;
+  capability_id?: string;
+  policy_hash?: string;
+  risk_assessment_id?: string;
+  session_key_id?: string;
+  replay_protection_key?: string;
+  operation?: {
+    target_contract?: string;
+    function_selector?: string;
+    asset?: string;
+    action?: string;
+    amount?: string;
+  };
 }
 
 export interface SubmitUserOpResponse {
@@ -84,6 +106,7 @@ export interface UserOpServiceDependencies {
     reason: "idempotency_duplicate" | "replay_duplicate";
     key: string;
   }) => Promise<void> | void;
+  agentValidator?: AgentValidator;
 }
 
 interface SubmissionRecord {
@@ -125,6 +148,19 @@ function toServiceError(error: unknown): ServiceError {
         return {
           code: "SPONSORSHIP_DENIED",
           message: "paymaster sponsorship denied",
+          details: error.details,
+        };
+      case "AGENT_INACTIVE":
+      case "MANDATE_INVALID":
+      case "CAPABILITY_INVALID":
+      case "SESSION_KEY_INVALID":
+      case "SESSION_KEY_SCOPE_VIOLATION":
+      case "POLICY_MISMATCH":
+      case "LIMIT_EXCEEDED":
+      case "NONCE_DOMAIN_MISMATCH":
+        return {
+          code: "POLICY_DENIED",
+          message: "agent policy validation failed",
           details: error.details,
         };
       case "UPSTREAM_UNAVAILABLE":
@@ -268,6 +304,55 @@ export class UserOpService {
     return `${params.chainId}:${params.entryPoint.toLowerCase()}:${params.account_id}:${params.canonicalNonce}`;
   }
 
+  private toRequiredString(value: string | undefined, field: string): string {
+    if (!value) {
+      throw new UserOpRuntimeError("INVALID_REQUEST", `${field} is required for agent-initiated operations`);
+    }
+    return value;
+  }
+
+  private asAgentValidationContext(params: {
+    request: ValidateUserOpRequest | SubmitUserOpRequest;
+    chainId: number;
+    nonceDomain: string;
+    consume: boolean;
+  }): AgentValidationContext | null {
+    if (!params.request.agent_context?.initiated_by_agent) {
+      return null;
+    }
+
+    const agentContext = params.request.agent_context;
+    const operation = agentContext.operation;
+    return {
+      chain_id: params.chainId,
+      account_id: params.request.account_id,
+      agent_id: this.toRequiredString(agentContext.agent_id, "agent_id"),
+      mandate_id: this.toRequiredString(agentContext.mandate_id, "mandate_id"),
+      mandate_version: this.toRequiredString(agentContext.mandate_version, "mandate_version"),
+      capability_id: this.toRequiredString(agentContext.capability_id, "capability_id"),
+      policy_version: params.request.policy_version,
+      policy_hash: this.toRequiredString(agentContext.policy_hash, "policy_hash"),
+      risk_assessment_id: this.toRequiredString(agentContext.risk_assessment_id, "risk_assessment_id"),
+      session_key_id: this.toRequiredString(agentContext.session_key_id, "session_key_id"),
+      nonce_domain: params.nonceDomain,
+      replay_protection_key: this.toRequiredString(
+        agentContext.replay_protection_key,
+        "replay_protection_key",
+      ),
+      operation: {
+        target_contract: this.toRequiredString(operation?.target_contract, "operation.target_contract"),
+        function_selector: this.toRequiredString(
+          operation?.function_selector,
+          "operation.function_selector",
+        ),
+        asset: this.toRequiredString(operation?.asset, "operation.asset"),
+        action: this.toRequiredString(operation?.action, "operation.action"),
+        amount: this.toRequiredString(operation?.amount, "operation.amount"),
+      },
+      consume: params.consume,
+    };
+  }
+
   private async rejectDuplicate(
     reason: "idempotency_duplicate" | "replay_duplicate",
     request: { account_id: string; reference_id: string },
@@ -373,6 +458,7 @@ export class UserOpService {
 
       const canonicalNonce = BigInt(canonical.nonce).toString(10);
       const expectedNonce = BigInt(request.expected_nonce).toString(10);
+      const nonceDomain = getNonceDomainFromNonce(canonical.nonce);
       if (canonicalNonce !== expectedNonce) {
         throw new UserOpRuntimeError("NONCE_CONFLICT", "user operation nonce does not match expected nonce", {
           expected_nonce: expectedNonce,
@@ -411,6 +497,22 @@ export class UserOpService {
         throw new UserOpRuntimeError("REPLAY_DETECTED", "duplicate replay key already submitted", {
           replay_key: replayKey,
         });
+      }
+
+      const agentContext = this.asAgentValidationContext({
+        request,
+        chainId,
+        nonceDomain,
+        consume: false,
+      });
+      if (agentContext) {
+        if (!this.dependencies.agentValidator) {
+          throw new UserOpRuntimeError(
+            "POLICY_MISMATCH",
+            "agent validator dependency required for agent-initiated operation",
+          );
+        }
+        await this.dependencies.agentValidator.validate(agentContext);
       }
 
       return {
@@ -490,6 +592,7 @@ export class UserOpService {
       validateUserOperationShape(canonical, !!this.dependencies.paymasterClient);
 
       const canonicalNonce = BigInt(canonical.nonce).toString(10);
+      const nonceDomain = getNonceDomainFromNonce(canonical.nonce);
       const replayKey = this.createReplayKey({
         chainId,
         entryPoint,
@@ -515,6 +618,22 @@ export class UserOpService {
         throw new UserOpRuntimeError("REPLAY_DETECTED", "duplicate replay key already submitted", {
           replay_key: replayKey,
         });
+      }
+
+      const agentContext = this.asAgentValidationContext({
+        request,
+        chainId,
+        nonceDomain,
+        consume: true,
+      });
+      if (agentContext) {
+        if (!this.dependencies.agentValidator) {
+          throw new UserOpRuntimeError(
+            "POLICY_MISMATCH",
+            "agent validator dependency required for agent-initiated operation",
+          );
+        }
+        await this.dependencies.agentValidator.validateAndConsume(agentContext);
       }
 
       if (this.dependencies.paymasterClient) {
