@@ -19,10 +19,16 @@ describe("Ryvra Accounts scaffold", () => {
 
     const issued = await sessionKeyManager.issueSessionKey({
       account_id: "acc_1",
+      agent_id: "agent_1",
+      mandate_id: "mandate_1",
+      capability_ids: ["cap_1"],
+      nonce_domain: "0x1",
       reference_id: "ref_issue_1",
       idempotency_key: "idem_issue_1",
       correlation_id: "corr_1",
       policy_version: "policy.v1",
+      policy_hash: "0x" + "aa".repeat(32),
+      risk_assessment_id: "risk_1",
       session_public_key: "0xabc",
       valid_after: "2026-01-01T00:00:00Z",
       valid_until: "2026-01-01T01:00:00Z",

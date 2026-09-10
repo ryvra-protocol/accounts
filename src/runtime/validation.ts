@@ -26,6 +26,12 @@ function parseHexToBigInt(value: string, field: string): bigint {
   return BigInt(value);
 }
 
+export function getNonceDomainFromNonce(nonceHex: string): string {
+  const nonce = parseHexToBigInt(nonceHex, "nonce");
+  const nonceDomain = nonce >> 64n;
+  return `0x${nonceDomain.toString(16)}`;
+}
+
 function assertGasInvariants(userOperation: UserOperation): void {
   const callGasLimit = parseHexToBigInt(userOperation.callGasLimit, "callGasLimit");
   const verificationGasLimit = parseHexToBigInt(
@@ -56,8 +62,7 @@ function assertGasInvariants(userOperation: UserOperation): void {
 }
 
 function assertNonceDomain(userOperation: UserOperation): void {
-  const nonce = parseHexToBigInt(userOperation.nonce, "nonce");
-  const nonceDomain = nonce >> 64n;
+  const nonceDomain = BigInt(getNonceDomainFromNonce(userOperation.nonce));
   if (nonceDomain > (1n << 128n) - 1n) {
     throw new UserOpRuntimeError("INVALID_NONCE_DOMAIN", "nonce domain exceeds 128 bits");
   }
