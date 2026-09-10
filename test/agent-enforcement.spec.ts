@@ -147,7 +147,7 @@ describe("RFC-0006/0007 agent enforcement", () => {
   });
 
   it("rejects expired mandate", async () => {
-    const { service } = setupService({ mandateValidUntil: "2020-01-01T00:00:00Z" });
+    const { service } = setupService({ mandateValidUntil: "2021-01-01T00:00:00Z" });
 
     const response = await service.submitUserOp({
       account_id: "acc_1",
@@ -163,7 +163,7 @@ describe("RFC-0006/0007 agent enforcement", () => {
   });
 
   it("rejects expired or revoked session key", async () => {
-    const expired = setupService({ sessionValidUntil: "2020-01-01T00:00:00Z" });
+    const expired = setupService({ sessionValidUntil: "2021-01-01T00:00:00Z" });
     const expiredResult = await expired.service.submitUserOp({
       account_id: "acc_1",
       reference_id: "ref_4",
@@ -322,7 +322,7 @@ describe("RFC-0006/0007 agent enforcement", () => {
     });
 
     expect(first).toHaveProperty("accepted", true);
-    expect(second).toHaveProperty("code", "POLICY_DENIED");
+    expect(second).toHaveProperty("code", "REPLAY_DETECTED");
   });
 
   it("prevents owner-level key path for agents", async () => {
